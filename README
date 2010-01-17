@@ -1,0 +1,14 @@
+= Description
+  A nicer interface for OLE on MS Windows using pure Ruby.
+
+= Synopsis (tentative)
+  require 'win32/ole'
+
+  ole = Win32::OLE.new('Excel.Application')
+  ...
+
+= Notes
+  Very preliminary stages at the moment.
+
+= Author
+  Daniel Berger
