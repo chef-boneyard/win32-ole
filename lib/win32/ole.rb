@@ -1,157 +1,139 @@
-require 'windows/com'
-require 'windows/com/automation'
-require 'windows/error'
-require 'windows/unicode'
-require 'windows/registry'
 require 'socket'
+require File.join(File.dirname(__FILE__), 'ole', 'constants')
+require File.join(File.dirname(__FILE__), 'ole', 'structs')
+require File.join(File.dirname(__FILE__), 'ole', 'functions')
+require File.join(File.dirname(__FILE__), 'ole', 'helper')
 
-module Win32   
-   class OLE
-      include Windows::Error
-      include Windows::COM
-      include Windows::COM::Automation
-      include Windows::Unicode
-      include Windows::Registry
+module Win32
+  class OLE
+    include Windows::Constants
+    include Windows::Structs
+    include Windows::Functions
+    extend Windows::Functions
 
-      extend Windows::Error
-      extend Windows::COM
-      extend Windows::COM::Automation
-      extend Windows::Unicode
-      extend Windows::Registry
-      
-      # The version of the win32-ole library.
-      VERSION = '0.1.0'
+    # The version of the win32-ole library.
+    VERSION = '0.1.0'
 
-      # Error raised if any of the OLE related methods fail.
-      class Error < StandardError; end
+    # The name of the OLE automation server specified in the constructor.
+    attr_reader :server
 
-      # The name of the OLE automation server specified in the constructor.
-      attr_reader :server
+    # The host the OLE automation object was created on.
+    attr_reader :host
 
-      # The host the OLE automation object was created on.
-      attr_reader :host
+    # Interface GUID's.
 
-      # These definitions were taken from http://tinyurl.com/3z8z4h
-      IID_IUnknown     = [0,0,0,192,0,0,0,0,0,0,70].pack('ISSCCCCCCCC')
-      IID_IDispatch    = [132096,0,0,192,0,0,0,0,0,0,70].pack('ISSCCCCCCCC')
-      IID_IEnumVARIANT = [132100,0,0,192,0,0,0,0,0,0,70].pack('ISSCCCCCCCC')
+    IID_IUnknown     = [0,0,0,192,0,0,0,0,0,0,70].pack('ISSCCCCCCCC')
+    IID_IDispatch    = [132096,0,0,192,0,0,0,0,0,0,70].pack('ISSCCCCCCCC')
+    IID_IEnumVARIANT = [132100,0,0,192,0,0,0,0,0,0,70].pack('ISSCCCCCCCC')
 
-      # Creates a new Win32::OLE server object on +host+, or the localhost if
-      # no host is specified. The +server+ can be either a Program ID or a
-      # Class ID.
-      #
-      # Examples:
-      #
-      #    # Program ID (Excel)
-      #    ole = Win32::OLE.new('Excel.Application')
-      #
-      #    # Class ID (Excel)
-      #    ole = Win32::OLE.new('{00024500-0000-0000-C000-000000000046}')
-      #    
-      def initialize(server, host = Socket.gethostname)
-         @server = server
-         @host   = host
+    # Creates a new Win32::OLE server object on +host+, or the localhost if
+    # no host is specified. The +server+ can be either a Program ID or a
+    # Class ID.
+    #
+    # Examples:
+    #
+    #    # Program ID (Excel)
+    #    ole = Win32::OLE.new('Excel.Application')
+    #
+    #    # Class ID (Excel)
+    #    ole = Win32::OLE.new('{00024500-0000-0000-C000-000000000046}')
+    #
+    def initialize(server, host = Socket.gethostname)
+      @server = server
+      @host   = host
 
-         clsid    = 0.chr * 16
-         dispatch = 0.chr * IID_IDispatch.size
+      clsid = FFI::MemoryPointer.new(:char, 16)
 
-         # Attempt to get a CLSID using from both ProgID and String
-         hr = CLSIDFromProgID(multi_to_wide(server, CP_UTF8), clsid)
+      # Attempt to get a CLSID using from both ProgID and String
+      hr = CLSIDFromProgID(server.wincode, clsid)
 
-         if FAILED(hr)
-            hr = CLSIDFromString(multi_to_wide(server, CP_UTF8), clsid)
-            if FAILED(hr)
-               raise Error, "unknown OLE server '#{server}'"
-            end
-         end
-
-         hr = CoInitialize(nil)
-
-         if FAILED(hr)
-            raise Error, get_last_error
-         end
-      
-         hr = CoCreateInstance(
-            clsid,
-            nil,
-            CLSCTX_INPROC_SERVER | CLSCTX_LOCAL_SERVER,
-            IID_IDispatch,
-            dispatch
-         )
-
-         if FAILED(hr)
-            raise Error, "failed to create OLE object from '#{server}'"
-         end
-
-         @dispatch = dispatch
+      if FAILED(hr)
+        hr = CLSIDFromString(server.wincode, clsid)
+        if FAILED(hr)
+          FFI.raise_windows_error('CLSIDFromString')
+        end
       end
 
-      # Opens an existing OLE server object on +host+, or the localhost if
-      # no host is specified. The +server+ can be a Program ID, a Class ID,
-      # or a moniker.
-      #
-      # Examples:
-      #
-      #    # Program ID (Excel)
-      #    ole = Win32::OLE.open('Excel.Application')
-      #
-      #    # Class ID (Excel)
-      #    ole = Win32::OLE.open('{00024500-0000-0000-C000-000000000046}')
-      #
-      #    # Moniker
-      #    ole = Win32::OLE.open('winmgmts://some_host/root/cimv2')
-      #    
-      def self.open(server, host=Socket.gethostname)
-         server = multi_to_wide(server, CP_UTF8)    
-         hr = OleInitialize()
+      hr = CoInitialize(nil)
 
-         if FAILED(hr)
-            raise Error, get_last_error
-         end
+      FFI.raise_windows_error('CoInitialize') if FAILED(hr)
 
-         clsid = 0.chr * 16
+      dispatch = FFI::MemoryPointer.new(:char, IID_IDispatch.size)
 
-         # Try as a Program ID first
-         hr = CLSIDFromProgID(server, clsid)
+      hr = CoCreateInstance(
+        clsid,
+        nil,
+        CLSCTX_INPROC_SERVER | CLSCTX_LOCAL_SERVER,
+        IID_IDispatch,
+        dispatch
+      )
 
-         # Then try as a Class ID
-         if FAILED(hr)
-            hr = CLSIDFromString(server, clsid)
-            
-            # Finally, try as a moniker
-            if FAILED(hr)
-               bind_ctx = 0.chr * 4
-               hr = CreateBindCtx(0, bind_ctx)
-               
-               if FAILED(hr)
-                  raise Error, get_last_error
-               end
-               
-               bind_ctx = bind_ctx.unpack('L').first
-               eaten   = 0.chr * 4
-               moniker = 0.chr * 4
+      FFI.raise_windows_error('CoCreateInstance') if FAILED(hr)
 
-               hr = MkParseDisplayName(bind_ctx, server, eaten, moniker)
+      @dispatch = dispatch
+    end
 
-               if FAILED(hr)
-                  raise Error, get_last_error
-               end
+    # Opens an existing OLE server object on +host+, or the localhost if
+    # no host is specified. The +server+ can be a Program ID, a Class ID,
+    # or a moniker.
+    #
+    # Examples:
+    #
+    #    # Program ID (Excel)
+    #    ole = Win32::OLE.open('Excel.Application')
+    #
+    #    # Class ID (Excel)
+    #    ole = Win32::OLE.open('{00024500-0000-0000-C000-000000000046}')
+    #
+    #    # Moniker
+    #    ole = Win32::OLE.open('winmgmts://some_host/root/cimv2')
+    #
+    def self.open(server, host=Socket.gethostname)
+      server = server.wincode
+      hr = OleInitialize(nil)
 
-               # TODO: Now what?
+      FFI.raise_windows_error('OleInitialize') if FAILED(hr)
 
-               return
-            end
-         end
+      clsid = FFI::MemoryPointer.new(:char, 16)
 
-         unknown = 0.chr * IID_IUnknown.size
-         
-         hr = GetActiveObject(clsid, 0, unknown)
+      # Try as a Program ID first
+      hr = CLSIDFromProgID(server, clsid)
 
-         if FAILED(hr)
-            raise Error, get_last_error
-         end
+      # Then try as a Class ID
+      if FAILED(hr)
+        hr = CLSIDFromString(server, clsid)
 
-         # TODO: Now what?
+        # Finally, try as a moniker
+        if FAILED(hr)
+          ctx = FFI::MemoryPointer.new(:ulong)
+          hr  = CreateBindCtx(0, ctx)
+
+          FFI.raise_windows_error('CreateBindCtx') if FAILED(hr)
+
+          eaten   = FFI::MemoryPointer.new(:ulong)
+          moniker = FFI::MemoryPointer.new(:ulong)
+
+          hr = MkParseDisplayName(ctx, server, eaten, moniker)
+
+          FFI.raise_windows_error('MkParseDisplayName') if FAILED(hr)
+
+          # TODO: Now what?
+
+          return
+        end
       end
-   end 
+
+      unknown = 0.chr * IID_IUnknown.size
+
+      hr = GetActiveObject(clsid, nil, unknown)
+
+      FFI.raise_windows_error('GetActiveObject') if FAILED(hr)
+
+      # TODO: Now what?
+    end
+  end
+end
+
+if $0 == __FILE__
+  excel = Win32::OLE.open('Excel.Application')
 end
