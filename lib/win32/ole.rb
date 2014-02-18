@@ -39,6 +39,9 @@ module Win32
     #    ole = Win32::OLE.new('{00024500-0000-0000-C000-000000000046}')
     #
     def initialize(server, host = Socket.gethostname)
+      raise TypeError unless server.is_a?(String)
+      raise TypeError unless host.is_a?(String)
+
       @server = server
       @host   = host
 
@@ -135,5 +138,6 @@ module Win32
 end
 
 if $0 == __FILE__
-  excel = Win32::OLE.open('Excel.Application')
+  ie = Win32::OLE.new('InternetExplorer.Application')
+  ie = Win32::OLE.new('{0002DF01-0000-0000-C000-000000000046}')
 end
