@@ -4,12 +4,14 @@ module Windows
   module Structs
     extend FFI::Library
 
+    typedef :uchar, :byte
+
     class GUID < FFI::Struct
       layout(
         :Data1, :ulong,
         :Data2, :ushort,
         :Data3, :ushort,
-        :Data4, [:char, 8]
+        :Data4, [:byte, 8]
       )
     end
   end
