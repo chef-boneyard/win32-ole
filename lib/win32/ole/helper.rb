@@ -27,7 +27,7 @@ module FFI
     flags = 0x00001000 | 0x00000200
     buf = FFI::MemoryPointer.new(:char, 1024)
 
-    FormatMessage(flags, nil, err , 0x0409, buf, 1024, nil)
+    FormatMessage(flags, nil, err , 0x0409, buf, buf.size, nil)
 
     function + ': ' + buf.read_string.strip
   end
