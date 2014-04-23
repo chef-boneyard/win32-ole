@@ -13,6 +13,7 @@ module Windows
     attach_function :CLSIDFromString, [:buffer_in, :pointer], :hresult
     attach_function :CoCreateInstance, [:pointer, :pointer, :dword, :pointer, :pointer], :hresult
     attach_function :CoInitialize, [:pointer], :hresult
+    attach_function :CoRegisterMessageFilter, [:pointer, :pointer], :hresult
     attach_function :CreateBindCtx, [:dword, :pointer], :hresult
     attach_function :MkParseDisplayName, [:pointer, :buffer_in, :pointer, :pointer], :hresult
     attach_function :OleInitialize, [:pointer], :hresult
