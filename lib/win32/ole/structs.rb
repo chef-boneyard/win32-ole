@@ -13,6 +13,12 @@ module Windows
         :Data3, :ushort,      # Second group of 4 hex digits
         :Data4, [:byte, 8]    # First 2 bytes contain the 3rd group of 4 hex digits. Remaining 6 bytes contain the final 12 hex digits.
       )
+
+      def vtable
+      end
+
+      def query_interface
+      end
     end
   end
 end
