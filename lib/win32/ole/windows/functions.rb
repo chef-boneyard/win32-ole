@@ -21,6 +21,7 @@ module Windows
     ffi_lib :oleaut32
 
     attach_function :GetActiveObject, [:pointer, :pointer, :pointer], :hresult
+    attach_function :VariantInit, [:pointer], :void
 
     # Macros
 
