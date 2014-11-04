@@ -52,6 +52,7 @@ module Win32
 
       if FAILED(hr)
         hr = CLSIDFromString(server.wincode, clsid)
+
         if FAILED(hr)
           FFI.raise_windows_error('CLSIDFromString')
         end
@@ -126,11 +127,13 @@ module Win32
         end
       end
 
-      unknown = 0.chr * IID_IUnknown.size
+      pptr = FFI::MemoryPointer.new(GUID)
 
-      hr = GetActiveObject(clsid, nil, unknown)
+      hr = GetActiveObject(clsid, nil, pptr)
 
       FFI.raise_windows_error('GetActiveObject') if FAILED(hr)
+
+      iunknown = GUID.new(pptr.read_pointer)
 
       # TODO: Now what?
     end
@@ -138,6 +141,9 @@ module Win32
 end
 
 if $0 == __FILE__
-  ie = Win32::OLE.new('InternetExplorer.Application')
-  ie = Win32::OLE.new('{0002DF01-0000-0000-C000-000000000046}')
+  #excel = Win32::OLE.open('Excel.Application')
+  #my_comp = Win32::OLE.open('{20d04fe0-3aea-1069-a2d8-08002b30309d}')
+  #ie = Win32::OLE.new('InternetExplorer.Application')
+  ie = Win32::OLE.open('InternetExplorer.Application')
+  p ie
 end
