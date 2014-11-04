@@ -1,8 +1,8 @@
 require 'socket'
-require File.join(File.dirname(__FILE__), 'ole', 'constants')
-require File.join(File.dirname(__FILE__), 'ole', 'structs')
-require File.join(File.dirname(__FILE__), 'ole', 'functions')
-require File.join(File.dirname(__FILE__), 'ole', 'helper')
+require_relative 'ole/windows/constants'
+require_relative 'ole/windows/structs'
+require_relative 'ole/windows/functions'
+require_relative 'ole/windows/helper'
 
 module Win32
   class OLE
