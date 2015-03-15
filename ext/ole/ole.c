@@ -71,7 +71,6 @@ static VALUE ole_initialize(int argc, VALUE* argv, VALUE self){
 
     mqi.pIID = &IID_IDispatch;
     mqi.pItf = NULL;
-    mqi.hr = 0;
 
     info.pwszName = host;
     info.pAuthInfo = NULL;
