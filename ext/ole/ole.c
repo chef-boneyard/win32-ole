@@ -5,6 +5,7 @@ static VALUE ole_initialize(int argc, VALUE* argv, VALUE self){
   HRESULT hr;
   VALUE v_server, v_host;
   wchar_t* server;
+  wchar_t* host;
   IDispatch* dispatch;
   int length;
   CLSID clsid;
@@ -22,8 +23,18 @@ static VALUE ole_initialize(int argc, VALUE* argv, VALUE self){
     rb_raise(rb_eSystemCallError, "MultibyteToWideChar", GetLastError());
   }
 
-  if (!NIL_P(v_host))
+  // TODO: Treat host as nil if argument is same as local computer name or localhost
+  if (!NIL_P(v_host)){
     SafeStringValue(v_host);
+
+    length = MultiByteToWideChar(CP_UTF8, 0, RSTRING_PTR(v_host), -1, NULL, 0);
+    host = (wchar_t*)ruby_xmalloc(MAX_PATH * sizeof(wchar_t));
+
+    if (!MultiByteToWideChar(CP_UTF8, 0, RSTRING_PTR(v_host), -1, host, length)){
+      ruby_xfree(host);
+      rb_raise(rb_eSystemCallError, "MultibyteToWideChar", GetLastError());
+    }
+  }
 
   // Attempt to get a CLSID using from both ProgID and String
   hr = CLSIDFromProgID(server, &clsid);
@@ -35,18 +46,45 @@ static VALUE ole_initialize(int argc, VALUE* argv, VALUE self){
       rb_raise(rb_eSystemCallError, "CLSIDFromString", hr);
   }
 
+  ruby_xfree(server); // Don't need this any more
+
   hr = CoInitialize(NULL);
 
   if (FAILED(hr))
     rb_raise(rb_eSystemCallError, "CoInitialize", hr);
 
-  hr = CoCreateInstance(
-    &clsid,
-    NULL,
-    CLSCTX_INPROC_SERVER | CLSCTX_LOCAL_SERVER,
-    &IID_IDispatch,
-    &dispatch
-  );
+  if (NIL_P(v_host)){
+    hr = CoCreateInstance(
+      &clsid,
+      NULL,
+      CLSCTX_INPROC_SERVER | CLSCTX_LOCAL_SERVER,
+      &IID_IDispatch,
+      &dispatch
+    );
+  }
+  else{
+    COSERVERINFO info;
+    MULTI_QI mqi;
+
+    memset(&info, 0, sizeof(COSERVERINFO));
+    memset(&mqi, 0, sizeof(MULTI_QI));
+
+    mqi.pIID = &IID_IDispatch;
+    mqi.pItf = NULL;
+    mqi.hr = 0;
+
+    info.pwszName = host;
+    info.pAuthInfo = NULL;
+
+    hr = CoCreateInstanceEx(
+      &clsid,
+      NULL,
+      CLSCTX_INPROC_SERVER | CLSCTX_REMOTE_SERVER,
+      &info,
+      1,
+      &mqi
+    );
+  }
 
   if (FAILED(hr))
     rb_raise(rb_eSystemCallError, "CoCreateInstance", hr);
